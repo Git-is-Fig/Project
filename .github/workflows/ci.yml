@@ -1,0 +1,30 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      - name: Lint
+        run: flake8 .
+      - name: Test
+        run: pytest tests/
+      - name: Docker Build & Push
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          docker build -t ghcr.io/${{ github.repository }}:latest .
+          docker push ghcr.io/${{ github.repository }}:latest
+      - name: Notify Slack
+        run: |
+          curl -X POST -H 'Content-type: application/json' --data '{"text":"CI завершено!"}' ${{ secrets.SLACK_WEBHOOK }}
