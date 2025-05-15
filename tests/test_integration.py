@@ -7,9 +7,11 @@ import signal
 from multiprocessing import Process
 import uvicorn
 
+
 # URL для тестів
 BASE_URL = "http://localhost:8000"
 server_process = None
+
 
 def run_server():
     """Запуск сервера для тестування"""
@@ -17,6 +19,7 @@ def run_server():
     import sys
     sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, log_level="error")
+
 
 def setup_module():
     """Запуск сервера перед початком тестів"""
@@ -26,6 +29,7 @@ def setup_module():
     # Даємо час серверу запуститися
     time.sleep(1)
 
+
 def teardown_module():
     """Зупинка сервера після завершення тестів"""
     global server_process
@@ -33,11 +37,13 @@ def teardown_module():
         server_process.terminate()
         server_process.join()
 
+
 def test_server_is_up():
     """Перевірка, що сервер запущено"""
     response = requests.get(f"{BASE_URL}/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
 
 def test_full_todo_workflow():
     """Тестування повного циклу роботи з завданнями"""
@@ -81,6 +87,7 @@ def test_full_todo_workflow():
     # 7. Перевіряємо, що завдання більше не існує
     response = requests.get(f"{BASE_URL}/todos/{new_todo['id']}")
     assert response.status_code == 404
+
 
 def test_error_handling():
     """Тестування обробки помилок"""
