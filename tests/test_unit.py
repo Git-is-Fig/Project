@@ -2,17 +2,21 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app, todos, TodoItem
 
+
 client = TestClient(app)
+
 
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
     assert response.json() == {"message": "Ласкаво просимо до TODO API"}
 
+
 def test_health_check():
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
 
 def test_get_todos_empty():
     # Очищаємо список завдань перед тестом
@@ -21,12 +25,14 @@ def test_get_todos_empty():
     assert response.status_code == 200
     assert response.json() == []
 
+
 def test_create_todo():
     todos.clear()
     todo_data = {"id": 1, "title": "Тестове завдання", "completed": False}
     response = client.post("/todos", json=todo_data)
     assert response.status_code == 200
     assert response.json() == todo_data
+
 
 def test_create_todo_duplicate_id():
     todos.clear()
@@ -40,6 +46,7 @@ def test_create_todo_duplicate_id():
     assert response.status_code == 400
     assert "вже існує" in response.json()["detail"]
 
+
 def test_get_todo_by_id():
     todos.clear()
     todo = TodoItem(id=1, title="Тестове завдання")
@@ -49,11 +56,13 @@ def test_get_todo_by_id():
     assert response.status_code == 200
     assert response.json() == {"id": 1, "title": "Тестове завдання", "completed": False}
 
+
 def test_get_todo_not_found():
     todos.clear()
     response = client.get("/todos/999")
     assert response.status_code == 404
     assert "не знайдено" in response.json()["detail"]
+
 
 def test_delete_todo():
     todos.clear()
@@ -64,6 +73,7 @@ def test_delete_todo():
     assert response.status_code == 200
     assert response.json() == {"message": "Завдання видалено"}
     assert len(todos) == 0
+
 
 def test_delete_todo_not_found():
     todos.clear()
