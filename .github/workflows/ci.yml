@@ -1,4 +1,5 @@
 name: CI
+
 on:
   push:
     branches: [main]
@@ -7,24 +8,44 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-      - name: Lint
-        run: flake8 .
-      - name: Test
-        run: pytest tests/
-      - name: Docker Build & Push
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Lint with flake8
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          pip install flake8
+          flake8 . || exit 1
+
+      - name: Run tests with pytest
+        run: |
+          pip install pytest
+          pytest tests/ || exit 1
+
+      - name: Docker build and push
+        if: success()
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           docker build -t ghcr.io/${{ github.repository }}:latest .
           docker push ghcr.io/${{ github.repository }}:latest
+
       - name: Notify Slack
+        if: always()
         run: |
-          curl -X POST -H 'Content-type: application/json' --data '{"text":"CI завершено!"}' ${{ secrets.SLACK_WEBHOOK }}
+          STATUS=":white_check_mark: CI завершено успішно!"
+          if [ "${{ job.status }}" != "success" ]; then
+            STATUS=":x: CI завершено з помилками!"
+          fi
+          curl -X POST -H 'Content-type: application/json' \
+            --data "{\"text\":\"$STATUS\"}" ${{ secrets.SLACK_WEBHOOK }}
