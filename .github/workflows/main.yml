@@ -2,9 +2,7 @@ name: Daily Python Code Analysis
 
 on:
   schedule:
-    # Запуск щодня о 02:00 UTC
-    - cron: '0 2 * * *'
-  # Додатково можна запускати вручну з GitHub інтерфейсу
+    - cron: '0 2 * * *'  # Щодня о 02:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -25,30 +23,31 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install flake8
-          # Якщо у вас є файл requirements.txt, розкоментуйте наступний рядок
           # pip install -r requirements.txt
       
       - name: Run Flake8 analysis
         id: flake8
         continue-on-error: true
         run: |
-          echo "::set-output name=flake8_output::$(flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics 2>&1)"
+          echo "flake8_output<<EOF" >> $GITHUB_OUTPUT
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics 2>&1 >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics > flake8_full_report.txt
-          
+
       - name: Prepare Slack message
         id: slack_msg
         run: |
           if [ -z "${{ steps.flake8.outputs.flake8_output }}" ]; then
-            echo "::set-output name=status::успішно"
-            echo "::set-output name=color::#2EB67D"
-            echo "::set-output name=files::Проблем не виявлено"
+            echo "status=успішно" >> $GITHUB_OUTPUT
+            echo "color=#2EB67D" >> $GITHUB_OUTPUT
+            echo "files=Проблем не виявлено" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=status::помилки"
-            echo "::set-output name=color::#E01E5A"
+            echo "status=помилки" >> $GITHUB_OUTPUT
+            echo "color=#E01E5A" >> $GITHUB_OUTPUT
             FILES=$(grep -o "[a-zA-Z0-9_./-]\+\.py" <<< "${{ steps.flake8.outputs.flake8_output }}" | sort | uniq | tr '\n' ', ' | sed 's/,$//')
-            echo "::set-output name=files::$FILES"
+            echo "files=$FILES" >> $GITHUB_OUTPUT
           fi
-          
+
       - name: Send Slack notification
         uses: slackapi/slack-github-action@v1.23.0
         with:
