@@ -1,0 +1,106 @@
+name: Daily Python Code Analysis
+
+on:
+  schedule:
+    # Запуск щодня о 02:00 UTC
+    - cron: '0 2 * * *'
+  # Додатково можна запускати вручну з GitHub інтерфейсу
+  workflow_dispatch:
+
+jobs:
+  flake8-analysis:
+    name: Flake8 Code Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+          # Якщо у вас є файл requirements.txt, розкоментуйте наступний рядок
+          # pip install -r requirements.txt
+      
+      - name: Run Flake8 analysis
+        id: flake8
+        continue-on-error: true
+        run: |
+          echo "::set-output name=flake8_output::$(flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics 2>&1)"
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics > flake8_full_report.txt
+          
+      - name: Prepare Slack message
+        id: slack_msg
+        run: |
+          if [ -z "${{ steps.flake8.outputs.flake8_output }}" ]; then
+            echo "::set-output name=status::успішно"
+            echo "::set-output name=color::#2EB67D"
+            echo "::set-output name=files::Проблем не виявлено"
+          else
+            echo "::set-output name=status::помилки"
+            echo "::set-output name=color::#E01E5A"
+            FILES=$(grep -o "[a-zA-Z0-9_./-]\+\.py" <<< "${{ steps.flake8.outputs.flake8_output }}" | sort | uniq | tr '\n' ', ' | sed 's/,$//')
+            echo "::set-output name=files::$FILES"
+          fi
+          
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.23.0
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🔍 Результат щоденного аналізу коду",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Статус:*\n${{ steps.slack_msg.outputs.status }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Репозиторій:*\n${{ github.repository }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Файли з проблемами:*\n${{ steps.slack_msg.outputs.files }}"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Повний звіт доступний в артефактах workflow"
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+          
+      - name: Upload Flake8 report as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: flake8-report
+          path: flake8_full_report.txt
+          retention-days: 7
